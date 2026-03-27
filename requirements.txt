@@ -1,0 +1,7 @@
+streamlit
+pandas
+pathlib
+numpy
+plotly.express
+plotly.graph_objects
+scipy.stats
