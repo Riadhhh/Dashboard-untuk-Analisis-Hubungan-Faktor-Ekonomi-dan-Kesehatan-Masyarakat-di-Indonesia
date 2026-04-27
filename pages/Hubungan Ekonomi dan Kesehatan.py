@@ -7,7 +7,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import pearsonr
 
-st.set_page_config(page_title="Hubungan Ekonomi dan Kesehatan", page_icon="🔗", layout="wide")
+st.set_page_config(
+    page_title="Hubungan Ekonomi dan Kesehatan", 
+    layout="wide"
+    )
 
 DATA_PATH = Path("data/dataset_final.csv")
 EXPECTED_COLUMNS = [
@@ -109,10 +112,10 @@ def build_pearson_table(data: pd.DataFrame, pairs: list[tuple[str, str]]) -> pd.
             {
                 "Variabel X": x,
                 "Variabel Y": y,
-                "Nilai r": round(r, 4),
+                "Nilai r": f"{r:.4f}",
                 "Arah Hubungan": arah_hubungan(r),
                 "Kekuatan Hubungan": kekuatan_hubungan(r),
-                "p-value": round(p, 6),
+                "p-value": f"{p:.2f}",
                 "Signifikansi": signifikansi_p(p),
                 "Interpretasi Singkat": interpretasi_singkat(x, y),
             }
@@ -208,7 +211,7 @@ st.plotly_chart(fig_scatter, use_container_width=True)
 st.markdown("### Interpretasi Pasangan Variabel Terpilih")
 interp_cols = st.columns(3)
 interp_cols[0].metric("Kekuatan Hubungan", kekuatan_hubungan(selected_r))
-interp_cols[1].metric("p-value", format_number(selected_p, digits=6))
+interp_cols[1].metric("p-value", format_number(selected_p, digits=2))
 interp_cols[2].metric("Rentang Tahun", f"{selected_years[0]} - {selected_years[1]}")
 st.info(interpretasi_singkat(selected_x, selected_y))
 

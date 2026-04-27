@@ -4,7 +4,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="Perbandingan Provinsi", page_icon="🗺️", layout="wide")
+st.set_page_config(
+    page_title="Perbandingan Provinsi",
+    layout="wide"
+    )
 
 DATA_PATH = Path("data/dataset_final.csv")
 EXPECTED_COLUMNS = [
@@ -74,11 +77,6 @@ with st.sidebar:
         value=(int(min(all_years)), int(max(all_years))),
     )
 
-    selected_indicator = st.selectbox(
-        "Indikator Ranking",
-        options=RANKING_INDICATORS,
-        index=0,
-    )
     sort_order = st.radio(
         "Urutan Ranking",
         options=["Tertinggi", "Terendah"],
@@ -87,16 +85,10 @@ with st.sidebar:
     )
     top_n = st.slider("Jumlah Provinsi", min_value=5, max_value=34, value=10)
 
-    heatmap_indicator = st.selectbox(
-        "Indikator Heatmap",
-        options=HEATMAP_INDICATORS,
-        index=0,
-    )
 
     selected_compare_provinces = st.multiselect(
         "Provinsi untuk Tren Perbandingan",
         options=all_provinces,
-        default=all_provinces[:4] if len(all_provinces) >= 4 else all_provinces,
     )
 
 filtered_df = df[
@@ -112,17 +104,27 @@ st.markdown("### Ringkasan Wilayah")
 summary_cols = st.columns(4)
 summary_cols[0].metric("Jumlah Provinsi", f"{filtered_df['Provinsi'].nunique():,}")
 summary_cols[1].metric("Tahun Aktif", f"{selected_years[0]} - {selected_years[1]}")
-summary_cols[2].metric("Indikator Ranking", selected_indicator)
-summary_cols[3].metric("Indikator Heatmap", heatmap_indicator)
 
 st.markdown("### Ranking Provinsi")
+
+selected_indicator = st.selectbox(
+    "Pilih Indikator Ranking",
+    options=RANKING_INDICATORS,
+    index=0,
+    key="indicator_rank_compare"
+)
+
 ranking_base = filtered_df.groupby("Provinsi", as_index=False)[RANKING_INDICATORS].mean()
 ranking_title_period = f"rata-rata {selected_years[0]}–{selected_years[1]}"
 
 ascending = True if sort_order == "Terendah" else False
-ranking_df = ranking_base.sort_values(selected_indicator, ascending=ascending).head(top_n)
+
+ranking_df = ranking_base.sort_values(
+    selected_indicator, ascending=ascending
+).head(top_n)
 
 col_rank_chart, col_rank_table = st.columns([2, 1])
+
 with col_rank_chart:
     fig_rank = px.bar(
         ranking_df,
@@ -141,14 +143,29 @@ with col_rank_table:
     st.markdown("#### Tabel Ranking")
     ranking_table = ranking_df[["Provinsi", selected_indicator]].reset_index(drop=True)
     ranking_table.index = ranking_table.index + 1
-    st.dataframe(ranking_table, use_container_width=True)
+    ranking_table =ranking_table.reset_index().rename(columns={"index": "No"})
+    st.dataframe(ranking_table, use_container_width=True,hide_index=True)
 
 st.markdown("### Heatmap Provinsi dan Tahun")
+
+heatmap_indicator = st.selectbox(
+    "Pilih Indikator Heatmap",
+    options=HEATMAP_INDICATORS,
+    index=0,
+    key="heatmap_indicator"
+)
+
 heatmap_source = (
     filtered_df.groupby(["Provinsi", "Tahun"], as_index=False)[heatmap_indicator]
     .mean()
 )
-heatmap_pivot = heatmap_source.pivot(index="Provinsi", columns="Tahun", values=heatmap_indicator)
+
+heatmap_pivot = heatmap_source.pivot(
+    index="Provinsi",
+    columns="Tahun",
+    values=heatmap_indicator
+)
+
 fig_heatmap = px.imshow(
     heatmap_pivot,
     aspect="auto",
@@ -156,9 +173,10 @@ fig_heatmap = px.imshow(
     labels=dict(x="Tahun", y="Provinsi", color=heatmap_indicator),
     title=f"Heatmap {heatmap_indicator} per Provinsi dan Tahun",
 )
-fig_heatmap.update_layout(margin=dict(l=20, r=20, t=50, b=20))
-st.plotly_chart(fig_heatmap, use_container_width=True)
 
+fig_heatmap.update_layout(margin=dict(l=20, r=20, t=50, b=20))
+
+st.plotly_chart(fig_heatmap, use_container_width=True)
 st.markdown("### Perbandingan Tren Provinsi Terpilih")
 if not selected_compare_provinces:
     st.info("Pilih minimal satu provinsi pada sidebar untuk menampilkan tren perbandingan.")
@@ -190,7 +208,6 @@ latest_snapshot = (
     .sort_values("Provinsi")
     .reset_index(drop=True)
 )
-
 latest_snapshot.index = latest_snapshot.index + 1
 latest_snapshot = latest_snapshot.reset_index().rename(columns={"index": "No"})
 

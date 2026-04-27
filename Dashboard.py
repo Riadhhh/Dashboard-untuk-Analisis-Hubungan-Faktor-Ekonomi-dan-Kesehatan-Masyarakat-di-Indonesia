@@ -4,10 +4,9 @@ from pathlib import Path
 
 st.set_page_config(
     page_title="Dashboard Ekonomi dan Kesehatan Indonesia",
-    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
-)
+    )
 
 DATA_PATH = Path("data/dataset_final.csv")
 EXPECTED_COLUMNS = [

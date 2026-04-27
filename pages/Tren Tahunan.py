@@ -4,7 +4,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="Tren Tahunan", page_icon="📈", layout="wide")
+st.set_page_config(
+    page_title="Tren Tahunan",
+    layout="wide"
+    )
 
 DATA_PATH = Path("data/dataset_final.csv")
 EXPECTED_COLUMNS = [

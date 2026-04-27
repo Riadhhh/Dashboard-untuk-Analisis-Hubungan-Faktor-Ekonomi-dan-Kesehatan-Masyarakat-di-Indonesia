@@ -4,7 +4,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="Overview", page_icon="📌", layout="wide")
+st.set_page_config(
+    page_title="Overview",
+    layout="wide"
+    )
 
 DATA_PATH = Path("data/dataset_final.csv")
 EXPECTED_COLUMNS = [
@@ -78,11 +81,7 @@ with st.sidebar:
         default=[],
         help="Kosongkan pilihan untuk menampilkan seluruh provinsi.",
     )
-    selected_indicator = st.selectbox(
-        "Indikator Ranking",
-        options=["P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"],
-        index=0,
-    )
+
     top_n = st.slider("Jumlah Provinsi yang Ditampilkan", min_value=5, max_value=34, value=10)
 
 filtered_df = df[
@@ -142,6 +141,12 @@ with left_col:
 
 with right_col:
     st.markdown("### Ranking Provinsi berdasarkan Rentang Tahun")
+    selected_indicator = st.selectbox(
+        "Pilih Indikator Ranking",
+        options=["P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"],
+        index=0,
+        key="indicator_rank"  # opsional tapi disarankan
+    )
     ranking_df = (
         filtered_df.groupby("Provinsi", as_index=False)[selected_indicator]
         .mean()
@@ -158,7 +163,10 @@ with right_col:
             f"({selected_years[0]}–{selected_years[1]})"
         ),
     )
-    fig_rank.update_layout(margin=dict(l=20, r=20, t=50, b=20), yaxis=dict(categoryorder="total ascending"))
+    fig_rank.update_layout(
+        margin=dict(l=20, r=20, t=50, b=20),
+        yaxis=dict(categoryorder="total ascending")
+    )
     st.plotly_chart(fig_rank, use_container_width=True)
 
 st.markdown("### Snapshot Tahun Terbaru")
