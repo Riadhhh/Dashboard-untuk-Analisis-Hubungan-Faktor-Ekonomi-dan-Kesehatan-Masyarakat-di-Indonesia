@@ -6,6 +6,7 @@ st.set_page_config(
     page_title="Dashboard Ekonomi dan Kesehatan Indonesia",
     layout="wide",
     initial_sidebar_state="expanded",
+    page_icon=None
     )
 
 DATA_PATH = Path("data/dataset_final.csv")

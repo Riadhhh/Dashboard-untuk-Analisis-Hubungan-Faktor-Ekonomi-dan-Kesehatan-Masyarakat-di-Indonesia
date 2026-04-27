@@ -6,7 +6,8 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Tren Tahunan",
-    layout="wide"
+    layout="wide",
+    page_icon=None
     )
 
 DATA_PATH = Path("data/dataset_final.csv")
