@@ -148,7 +148,7 @@ with st.sidebar:
         value=(int(min(all_years)), int(max(all_years))),
     )
     selected_provinces = st.multiselect(
-        "Pilih Provinsi (opsional)",
+        "Pilih Provinsi",
         options=all_provinces,
         default=[],
         help="Kosongkan untuk menampilkan seluruh provinsi.",
@@ -224,7 +224,7 @@ with left_col:
     fig_heatmap = px.imshow(
         corr_matrix,
         text_auto=True,
-        color_continuous_scale="RdBu_r",
+        color_continuous_scale="RdYlGn_r",
         zmin=-1,
         zmax=1,
         title="Heatmap Korelasi Pearson",

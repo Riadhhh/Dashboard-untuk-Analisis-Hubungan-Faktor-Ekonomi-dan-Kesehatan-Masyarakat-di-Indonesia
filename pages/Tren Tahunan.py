@@ -75,18 +75,11 @@ with st.sidebar:
         max_value=int(max(all_years)),
         value=(int(min(all_years)), int(max(all_years))),
     )
-    province_mode = st.radio(
-        "Mode Data",
-        options=["Seluruh Provinsi", "Provinsi Tertentu"],
-        index=0,
-    )
-    selected_provinces = []
-    if province_mode == "Provinsi Tertentu":
-        selected_provinces = st.multiselect(
-            "Pilih Provinsi",
-            options=all_provinces,
-            default=all_provinces[:3] if len(all_provinces) >= 3 else all_provinces,
-        )
+    selected_provinces = st.multiselect(
+    "Pilih Provinsi",
+    options=all_provinces,
+    default=[],
+    )   
     selected_indicator = st.selectbox(
         "Indikator Utama",
         options=["P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"],
@@ -98,12 +91,8 @@ filtered_df = df[
     (df["Tahun"] <= selected_years[1])
 ].copy()
 
-if province_mode == "Provinsi Tertentu":
-    if not selected_provinces:
-        st.warning("Pilih minimal satu provinsi untuk menampilkan tren.")
-        st.stop()
+if selected_provinces:
     filtered_df = filtered_df[filtered_df["Provinsi"].isin(selected_provinces)].copy()
-
 if filtered_df.empty:
     st.warning("Tidak ada data yang sesuai dengan filter yang dipilih.")
     st.stop()
@@ -133,16 +122,7 @@ summary_cols[3].metric(
 )
 
 st.markdown("### Tren Indikator Utama")
-if province_mode == "Seluruh Provinsi":
-    chart_df = filtered_df.groupby("Tahun", as_index=False)[selected_indicator].mean()
-    fig_main = px.line(
-        chart_df,
-        x="Tahun",
-        y=selected_indicator,
-        markers=True,
-        title=f"Tren Rata-rata {selected_indicator} ({selected_years[0]}–{selected_years[1]})",
-    )
-else:
+if selected_provinces:
     chart_df = filtered_df.copy()
     fig_main = px.line(
         chart_df,
@@ -151,6 +131,15 @@ else:
         color="Provinsi",
         markers=True,
         title=f"Tren {selected_indicator} pada Provinsi Terpilih ({selected_years[0]}–{selected_years[1]})",
+    )
+else:
+    chart_df = filtered_df.groupby("Tahun", as_index=False)[selected_indicator].mean()
+    fig_main = px.line(
+        chart_df,
+        x="Tahun",
+        y=selected_indicator,
+        markers=True,
+        title=f"Tren Rata-rata {selected_indicator} Seluruh Provinsi ({selected_years[0]}–{selected_years[1]})",
     )
 fig_main.update_layout(margin=dict(l=20, r=20, t=50, b=20))
 st.plotly_chart(fig_main, use_container_width=True)
@@ -165,16 +154,7 @@ with left_col:
         index=1,
         key="additional_indicator",
     )
-    if province_mode == "Seluruh Provinsi":
-        add_df = filtered_df.groupby("Tahun", as_index=False)[multi_indicator].mean()
-        fig_add = px.line(
-            add_df,
-            x="Tahun",
-            y=multi_indicator,
-            markers=True,
-            title=f"Tren Rata-rata {multi_indicator}",
-        )
-    else:
+    if selected_provinces:
         add_df = filtered_df.copy()
         fig_add = px.line(
             add_df,
@@ -183,6 +163,15 @@ with left_col:
             color="Provinsi",
             markers=True,
             title=f"Tren {multi_indicator} pada Provinsi Terpilih",
+        )
+    else:
+        add_df = filtered_df.groupby("Tahun", as_index=False)[multi_indicator].mean()
+        fig_add = px.line(
+            add_df,
+            x="Tahun",
+            y=multi_indicator,
+            markers=True,
+            title=f"Tren Rata-rata {multi_indicator} Seluruh Provinsi",
         )
     fig_add.update_layout(margin=dict(l=20, r=20, t=50, b=20))
     st.plotly_chart(fig_add, use_container_width=True)

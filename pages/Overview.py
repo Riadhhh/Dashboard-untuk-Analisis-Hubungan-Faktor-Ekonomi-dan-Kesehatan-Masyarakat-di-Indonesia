@@ -146,7 +146,7 @@ with right_col:
         "Pilih Indikator Ranking",
         options=["P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"],
         index=0,
-        key="indicator_rank"  # opsional tapi disarankan
+        key="indicator_rank"
     )
     ranking_df = (
         filtered_df.groupby("Provinsi", as_index=False)[selected_indicator]

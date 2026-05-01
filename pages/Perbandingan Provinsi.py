@@ -77,19 +77,23 @@ with st.sidebar:
         max_value=int(max(all_years)),
         value=(int(min(all_years)), int(max(all_years))),
     )
-
+    selected_compare_provinces = st.multiselect(
+        "Pilih Provinsi",
+        options=all_provinces,
+        default=[],
+        help="Kosongkan pilihan untuk menampilkan seluruh provinsi.",
+    )
     sort_order = st.radio(
         "Urutan Ranking",
         options=["Tertinggi", "Terendah"],
         index=0,
         horizontal=True,
     )
-    top_n = st.slider("Jumlah Provinsi", min_value=5, max_value=34, value=10)
-
-
-    selected_compare_provinces = st.multiselect(
-        "Provinsi untuk Tren Perbandingan",
-        options=all_provinces,
+    top_n = st.slider(
+        "Jumlah Provinsi",
+        min_value=5,
+        max_value=len(all_provinces),
+        value=10,
     )
 
 filtered_df = df[
@@ -97,14 +101,29 @@ filtered_df = df[
     (df["Tahun"] <= selected_years[1])
 ].copy()
 
+if selected_compare_provinces:
+    filtered_df = filtered_df[
+        filtered_df["Provinsi"].isin(selected_compare_provinces)
+    ].copy()
+
 if filtered_df.empty:
     st.warning("Tidak ada data yang sesuai dengan filter yang dipilih.")
     st.stop()
 
 st.markdown("### Ringkasan Wilayah")
 summary_cols = st.columns(4)
-summary_cols[0].metric("Jumlah Provinsi", f"{filtered_df['Provinsi'].nunique():,}")
-summary_cols[1].metric("Tahun Aktif", f"{selected_years[0]} - {selected_years[1]}")
+summary_cols[0].metric(
+    "Jumlah Provinsi",
+    f"{filtered_df['Provinsi'].nunique():,}"
+)
+summary_cols[1].metric(
+    "Tahun Aktif",
+    f"{selected_years[0]} - {selected_years[1]}"
+)
+summary_cols[2].metric(
+    "Jumlah Data",
+    f"{len(filtered_df):,}"
+)
 
 st.markdown("### Ranking Provinsi")
 
@@ -121,18 +140,26 @@ ranking_title_period = f"rata-rata {selected_years[0]}–{selected_years[1]}"
 ascending = True if sort_order == "Terendah" else False
 
 ranking_df = ranking_base.sort_values(
-    selected_indicator, ascending=ascending
-).head(top_n)
+    selected_indicator,
+    ascending=ascending
+)
+if not selected_compare_provinces:
+    ranking_df = ranking_df.head(top_n)
 
 col_rank_chart, col_rank_table = st.columns([2, 1])
 
 with col_rank_chart:
+    ranking_scope = (
+        f"{top_n} Provinsi"
+        if not selected_compare_provinces
+        else "Provinsi Terpilih"
+    )
     fig_rank = px.bar(
         ranking_df,
         x=selected_indicator,
         y="Provinsi",
         orientation="h",
-        title=f"{top_n} Provinsi {sort_order} berdasarkan {selected_indicator} ({ranking_title_period})",
+        title=f"{ranking_scope} {sort_order} berdasarkan {selected_indicator} ({ranking_title_period})",
     )
     fig_rank.update_layout(
         margin=dict(l=20, r=20, t=50, b=20),
@@ -147,26 +174,22 @@ with col_rank_table:
     ranking_table =ranking_table.reset_index().rename(columns={"index": "No"})
     st.dataframe(ranking_table, use_container_width=True,hide_index=True)
 
-st.markdown("### Heatmap Provinsi dan Tahun")
-
+st.markdown("### Heatmap Provinsi")
 heatmap_indicator = st.selectbox(
     "Pilih Indikator Heatmap",
     options=HEATMAP_INDICATORS,
     index=0,
     key="heatmap_indicator"
 )
-
 heatmap_source = (
     filtered_df.groupby(["Provinsi", "Tahun"], as_index=False)[heatmap_indicator]
     .mean()
 )
-
 heatmap_pivot = heatmap_source.pivot(
     index="Provinsi",
     columns="Tahun",
     values=heatmap_indicator
 )
-
 fig_heatmap = px.imshow(
     heatmap_pivot,
     aspect="auto",
@@ -174,36 +197,56 @@ fig_heatmap = px.imshow(
     labels=dict(x="Tahun", y="Provinsi", color=heatmap_indicator),
     title=f"Heatmap {heatmap_indicator} per Provinsi dan Tahun",
 )
-
 fig_heatmap.update_layout(margin=dict(l=20, r=20, t=50, b=20))
 
 st.plotly_chart(fig_heatmap, use_container_width=True)
-st.markdown("### Perbandingan Tren Provinsi Terpilih")
-if not selected_compare_provinces:
-    st.info("Pilih minimal satu provinsi pada sidebar untuk menampilkan tren perbandingan.")
+
+st.markdown("### Perbandingan Tren Provinsi")
+trend_indicator = st.selectbox(
+    "Pilih indikator tren provinsi",
+    options=RANKING_INDICATORS,
+    index=0,
+)
+
+compare_df = filtered_df.copy()
+
+compare_grouped = compare_df.groupby(
+    ["Provinsi", "Tahun"],
+    as_index=False
+)[trend_indicator].mean()
+
+if compare_grouped.empty:
+    st.warning("Tidak ada data tren yang sesuai dengan filter yang dipilih.")
 else:
-    compare_df = filtered_df[filtered_df["Provinsi"].isin(selected_compare_provinces)].copy()
-    trend_indicator = st.selectbox(
-        "Pilih indikator tren provinsi",
-        options=RANKING_INDICATORS,
-        index=0,
-    )
-    compare_grouped = compare_df.groupby(["Provinsi", "Tahun"], as_index=False)[trend_indicator].mean()
-    fig_compare = px.line(
-        compare_grouped,
-        x="Tahun",
-        y=trend_indicator,
-        color="Provinsi",
-        markers=True,
-        title=f"Tren {trend_indicator} pada Provinsi Terpilih",
-    )
+    jumlah_provinsi_tren = compare_grouped["Provinsi"].nunique()
+    if jumlah_provinsi_tren == 1:
+        nama_provinsi = compare_grouped["Provinsi"].iloc[0]
+        fig_compare = px.line(
+            compare_grouped,
+            x="Tahun",
+            y=trend_indicator,
+            markers=True,
+            title=f"Tren {trend_indicator} Provinsi {nama_provinsi}",
+        )
+    else:
+        trend_scope = (
+            "Provinsi Terpilih"
+            if selected_compare_provinces
+            else "Seluruh Provinsi"
+        )
+        fig_compare = px.line(
+            compare_grouped,
+            x="Tahun",
+            y=trend_indicator,
+            color="Provinsi",
+            markers=True,
+            title=f"Tren {trend_indicator} pada {trend_scope}",
+        )
     fig_compare.update_layout(margin=dict(l=20, r=20, t=50, b=20))
     st.plotly_chart(fig_compare, use_container_width=True)
 
 st.markdown("### Snapshot Tahun Terbaru")
-
 latest_snapshot = filtered_df[filtered_df["Tahun"] == filtered_df["Tahun"].max()].copy()
-
 latest_snapshot = (
     latest_snapshot[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]]
     .sort_values("Provinsi")
