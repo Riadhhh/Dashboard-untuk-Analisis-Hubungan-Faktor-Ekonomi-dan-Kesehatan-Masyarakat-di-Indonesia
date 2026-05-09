@@ -19,11 +19,22 @@ EXPECTED_COLUMNS = [
     "PDRB",
     "IPM",
     "AHH",
+    "Cluster",
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 RANKING_INDICATORS = ["P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]
 HEATMAP_INDICATORS = ["P0", "IPM", "AHH", "PDRB"]
-
+CLUSTER_LABELS = {
+    1: "Rentan",
+    2: "Menengah",
+    3: "Maju",
+}
+CLUSTER_ORDER = ["Rentan", "Menengah", "Maju"]
+CLUSTER_COLORS = {
+    "Rentan": "#d62728",
+    "Menengah": "#ffbf00",
+    "Maju": "#2ca02c",
+}
 
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
@@ -42,22 +53,63 @@ def load_data(path: Path) -> pd.DataFrame:
         )
 
     df = df[EXPECTED_COLUMNS].copy()
-    for col in ["Tahun", *NUMERIC_COLUMNS]:
+    for col in ["Tahun", *NUMERIC_COLUMNS, "Cluster"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-
     df = df.dropna().sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
-    return df
+    df["Tahun"] = df["Tahun"].astype(int)
+    df["Cluster"] = df["Cluster"].astype(int)
 
+    return df
 
 def format_number(value: float, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
+def format_cluster(value: int) -> str:
+    return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
+
+def add_cluster_description(df: pd.DataFrame) -> pd.DataFrame:
+    result_df = df.copy()
+    result_df["Keterangan Cluster"] = result_df["Cluster"].apply(format_cluster)
+    return result_df
+
+def get_cluster_reference(df: pd.DataFrame):
+    cluster_centers = (
+        df
+        .groupby("Cluster")[NUMERIC_COLUMNS]
+        .mean()
+        .sort_index()
+    )
+    mean_values = df[NUMERIC_COLUMNS].mean()
+    std_values = df[NUMERIC_COLUMNS].std(ddof=0).replace(0, 1)
+
+    cluster_centers_scaled = (cluster_centers - mean_values) / std_values
+
+    return mean_values, std_values, cluster_centers_scaled
+
+
+def tentukan_cluster_dari_rata_rata_indikator(
+    row: pd.Series,
+    mean_values: pd.Series,
+    std_values: pd.Series,
+    cluster_centers_scaled: pd.DataFrame,
+) -> int:
+    row_scaled = (row[NUMERIC_COLUMNS] - mean_values) / std_values
+
+    distances = (
+        (cluster_centers_scaled - row_scaled) ** 2
+    ).sum(axis=1) ** 0.5
+    return int(distances.idxmin())
+    
 
 try:
     df = load_data(DATA_PATH)
 except Exception as exc:
     st.error(f"Gagal memuat dataset: {exc}")
     st.stop()
+
+df = add_cluster_description(df)
+
+mean_values, std_values, cluster_centers_scaled = get_cluster_reference(df)
 
 st.title("Perbandingan Antar Provinsi")
 st.caption(
@@ -83,6 +135,13 @@ with st.sidebar:
         default=[],
         help="Kosongkan pilihan untuk menampilkan seluruh provinsi.",
     )
+    selected_clusters = st.multiselect(
+        "Pilih Cluster",
+        options=sorted(df["Cluster"].unique().tolist()),
+        default=[],
+        format_func=lambda x: format_cluster(x),
+        help="Kosongkan pilihan untuk menampilkan seluruh cluster.",
+    )
     sort_order = st.radio(
         "Urutan Ranking",
         options=["Tertinggi", "Terendah"],
@@ -106,6 +165,11 @@ if selected_compare_provinces:
         filtered_df["Provinsi"].isin(selected_compare_provinces)
     ].copy()
 
+if selected_clusters:
+    filtered_df = filtered_df[
+        filtered_df["Cluster"].isin(selected_clusters)
+    ].copy()
+
 if filtered_df.empty:
     st.warning("Tidak ada data yang sesuai dengan filter yang dipilih.")
     st.stop()
@@ -124,6 +188,10 @@ summary_cols[2].metric(
     "Jumlah Data",
     f"{len(filtered_df):,}"
 )
+summary_cols[3].metric(
+    "Cluster Tersedia",
+    f"{filtered_df['Cluster'].nunique():,}"
+)
 
 st.markdown("### Ranking Provinsi")
 
@@ -131,20 +199,38 @@ selected_indicator = st.selectbox(
     "Pilih Indikator Ranking",
     options=RANKING_INDICATORS,
     index=0,
-    key="indicator_rank_compare"
+    key="indicator_rank_compare",
+)
+ranking_base = (
+    filtered_df
+    .groupby("Provinsi", as_index=False)[RANKING_INDICATORS]
+    .mean()
+)
+ranking_base["Cluster"] = ranking_base.apply(
+    lambda row: tentukan_cluster_dari_rata_rata_indikator(
+        row,
+        mean_values,
+        std_values,
+        cluster_centers_scaled,
+    ),
+    axis=1,
 )
 
-ranking_base = filtered_df.groupby("Provinsi", as_index=False)[RANKING_INDICATORS].mean()
+ranking_base["Keterangan Cluster"] = ranking_base["Cluster"].apply(format_cluster)
+
 ranking_title_period = f"rata-rata {selected_years[0]}–{selected_years[1]}"
 
 ascending = True if sort_order == "Terendah" else False
 
-ranking_df = ranking_base.sort_values(
-    selected_indicator,
-    ascending=ascending
+ranking_df = (
+    ranking_base
+    .sort_values(selected_indicator, ascending=ascending)
+    .head(top_n)
 )
-if not selected_compare_provinces:
-    ranking_df = ranking_df.head(top_n)
+selected_display_provinces = ranking_df["Provinsi"].tolist()
+chart_filtered_df = filtered_df[
+    filtered_df["Provinsi"].isin(selected_display_provinces)
+].copy()
 
 col_rank_chart, col_rank_table = st.columns([2, 1])
 
@@ -155,11 +241,20 @@ with col_rank_chart:
         else "Provinsi Terpilih"
     )
     fig_rank = px.bar(
-        ranking_df,
-        x=selected_indicator,
-        y="Provinsi",
-        orientation="h",
-        title=f"{ranking_scope} {sort_order} berdasarkan {selected_indicator} ({ranking_title_period})",
+    ranking_df,
+    x=selected_indicator,
+    y="Provinsi",
+    color="Keterangan Cluster",
+    orientation="h",
+    category_orders={
+        "Keterangan Cluster": CLUSTER_ORDER
+    },
+    color_discrete_map=CLUSTER_COLORS,
+    labels={
+        "Keterangan Cluster": "Cluster",
+        selected_indicator: selected_indicator,
+    },
+    title=f"{ranking_scope} {sort_order} berdasarkan {selected_indicator} ({ranking_title_period})",
     )
     fig_rank.update_layout(
         margin=dict(l=20, r=20, t=50, b=20),
@@ -169,7 +264,9 @@ with col_rank_chart:
 
 with col_rank_table:
     st.markdown("#### Tabel Ranking")
-    ranking_table = ranking_df[["Provinsi", selected_indicator]].reset_index(drop=True)
+    ranking_table = ranking_df[
+        ["Provinsi", selected_indicator, "Cluster", "Keterangan Cluster"]
+    ].reset_index(drop=True)
     ranking_table.index = ranking_table.index + 1
     ranking_table =ranking_table.reset_index().rename(columns={"index": "No"})
     st.dataframe(ranking_table, use_container_width=True,hide_index=True)
@@ -182,7 +279,7 @@ heatmap_indicator = st.selectbox(
     key="heatmap_indicator"
 )
 heatmap_source = (
-    filtered_df.groupby(["Provinsi", "Tahun"], as_index=False)[heatmap_indicator]
+    chart_filtered_df.groupby(["Provinsi", "Tahun"], as_index=False)[heatmap_indicator]
     .mean()
 )
 heatmap_pivot = heatmap_source.pivot(
@@ -208,7 +305,7 @@ trend_indicator = st.selectbox(
     index=0,
 )
 
-compare_df = filtered_df.copy()
+compare_df = chart_filtered_df.copy()
 
 compare_grouped = compare_df.groupby(
     ["Provinsi", "Tahun"],
@@ -245,10 +342,22 @@ else:
     fig_compare.update_layout(margin=dict(l=20, r=20, t=50, b=20))
     st.plotly_chart(fig_compare, use_container_width=True)
 
-st.markdown("### Snapshot Tahun Terbaru")
+st.markdown("### Tabel Perbandingan Provinsi Tahun Terbaru")
 latest_snapshot = filtered_df[filtered_df["Tahun"] == filtered_df["Tahun"].max()].copy()
 latest_snapshot = (
-    latest_snapshot[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]]
+    latest_snapshot[
+        [
+            "Provinsi",
+            "Tahun",
+            "P0",
+            "PDRB",
+            "IPM",
+            "AHH",
+            "Jumlah_Miskin",
+            "Cluster",
+            "Keterangan Cluster",
+        ]
+    ]
     .sort_values("Provinsi")
     .reset_index(drop=True)
 )

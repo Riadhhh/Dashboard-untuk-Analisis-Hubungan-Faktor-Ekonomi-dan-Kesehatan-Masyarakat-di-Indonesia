@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import pearsonr
+from utils.ai_interpretasi import chatbot, generate_ai
 
 st.set_page_config(
     page_title="Hubungan Ekonomi dan Kesehatan", 
@@ -57,7 +58,6 @@ def load_data(path: Path) -> pd.DataFrame:
 def format_number(value: float, digits: int = 4) -> str:
     return f"{value:,.{digits}f}"
 
-
 def arah_hubungan(r: float) -> str:
     if r > 0:
         return "Positif"
@@ -82,23 +82,6 @@ def kekuatan_hubungan(r: float) -> str:
 def signifikansi_p(p: float) -> str:
     return "Signifikan" if p < 0.05 else "Tidak signifikan"
 
-
-def interpretasi_singkat(x: str, y: str) -> str:
-    if x == "P0" and y == "AHH":
-        return "Semakin tinggi kemiskinan, cenderung semakin rendah angka harapan hidup."
-    if x == "PDRB" and y == "AHH":
-        return "Semakin tinggi PDRB, cenderung semakin tinggi angka harapan hidup."
-    if x == "P0" and y == "IPM":
-        return "Semakin tinggi kemiskinan, cenderung semakin rendah IPM."
-    if x == "PDRB" and y == "IPM":
-        return "Semakin tinggi PDRB, cenderung semakin tinggi IPM."
-    if x == "Jumlah_Miskin" and y == "AHH":
-        return "Hubungan perlu dibaca hati-hati karena Jumlah_Miskin bersifat absolut."
-    if x == "Jumlah_Miskin" and y == "IPM":
-        return "Hubungan perlu dibaca hati-hati karena Jumlah_Miskin bersifat absolut."
-    return "Hubungan antar variabel perlu diinterpretasikan sesuai konteks penelitian."
-
-
 def add_number_column(df: pd.DataFrame) -> pd.DataFrame:
     df = df.reset_index(drop=True)
     df.index = df.index + 1
@@ -118,7 +101,6 @@ def build_pearson_table(data: pd.DataFrame, pairs: list[tuple[str, str]]) -> pd.
                 "Kekuatan Hubungan": kekuatan_hubungan(r),
                 "p-value": f"{p:.2f}",
                 "Signifikansi": signifikansi_p(p),
-                "Interpretasi Singkat": interpretasi_singkat(x, y),
             }
         )
     return add_number_column(pd.DataFrame(rows))
@@ -214,7 +196,6 @@ interp_cols = st.columns(3)
 interp_cols[0].metric("Kekuatan Hubungan", kekuatan_hubungan(selected_r))
 interp_cols[1].metric("p-value", format_number(selected_p, digits=2))
 interp_cols[2].metric("Rentang Tahun", f"{selected_years[0]} - {selected_years[1]}")
-st.info(interpretasi_singkat(selected_x, selected_y))
 
 left_col, right_col = st.columns(2)
 
@@ -233,7 +214,7 @@ with left_col:
     st.plotly_chart(fig_heatmap, use_container_width=True)
 
 with right_col:
-    st.markdown("### Snapshot Data Analisis")
+    st.markdown("### Data yang Digunakan dalam Analisis Korelasi")
     snapshot_df = filtered_df[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]].copy()
     snapshot_df = snapshot_df.sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
     snapshot_df = add_number_column(snapshot_df.head(340))
@@ -247,22 +228,69 @@ st.markdown("### Hasil Korelasi Pearson Pendukung")
 pearson_support_df = build_pearson_table(filtered_df, SUPPORTING_PAIRS)
 st.dataframe(pearson_support_df, use_container_width=True, hide_index=True)
 
-st.markdown("### Interpretasi Hasil Korelasi")
+st.markdown("### Kesimpulan Korelasi")
+st.caption(
+    "Bagian ini menampilkan kesimpulan  dari seluruh hasil korelasi utama dan pendukung."
+)
+if st.button("Buat Kesimpulan"):
+    with st.spinner("AI sedang membuat kesimpulan ringkas..."):
+        kesimpulan_ai = generate_ai(
+            pearson_main_df=pearson_main_df,
+            pearson_support_df=pearson_support_df,
+            tahun_awal=selected_years[0],
+            tahun_akhir=selected_years[1],
+            jumlah_observasi=len(filtered_df),
+            provinsi_terpilih=selected_provinces if selected_provinces else None,
+        )
+    st.markdown(kesimpulan_ai)
 
-st.markdown("#### Hasil Utama")
-for _, row in pearson_main_df.iterrows():
-    st.write(
-        f"- Hubungan antara **{row['Variabel X']}** dan **{row['Variabel Y']}** bersifat "
-        f"**{row['Arah Hubungan'].lower()}** dengan kekuatan **{row['Kekuatan Hubungan'].lower()}** "
-        f"(r = {row['Nilai r']}, p-value = {row['p-value']})."
+st.markdown("### Chatbot Interpretasi Hasil Analisis")
+st.caption(
+    "Ajukan pertanyaan mengenai hasil korelasi, scatterplot, heatmap, atau hubungan "
+    "antara faktor ekonomi dan kesehatan masyarakat berdasarkan data yang sedang ditampilkan."
+)
+
+if "chat_history_hubungan" not in st.session_state:
+    st.session_state.chat_history_hubungan = []
+
+for chat in st.session_state.chat_history_hubungan:
+    with st.chat_message(chat["role"]):
+        st.markdown(chat["content"])
+
+if st.button("Hapus Riwayat Chat"):
+    st.session_state.chat_history_hubungan = []
+    st.rerun()
+
+user_question = st.chat_input("Tanyakan sesuatu tentang hasil analisis hubungan...")
+
+if user_question:
+    st.session_state.chat_history_hubungan.append(
+        {"role": "user", "content": user_question}
     )
 
-st.markdown("#### Hasil Pendukung")
-for _, row in pearson_support_df.iterrows():
-    st.write(
-        f"- Hubungan antara **{row['Variabel X']}** dan **{row['Variabel Y']}** bersifat "
-        f"**{row['Arah Hubungan'].lower()}** dengan kekuatan **{row['Kekuatan Hubungan'].lower()}** "
-        f"(r = {row['Nilai r']}, p-value = {row['p-value']})."
+    with st.chat_message("user"):
+        st.markdown(user_question)
+
+    with st.chat_message("assistant"):
+        with st.spinner("AI sedang menganalisis hasil dashboard..."):
+            ai_answer = chatbot(
+                user_question=user_question,
+                data=filtered_df,
+                x=selected_x,
+                y=selected_y,
+                r=selected_r,
+                p=selected_p,
+                pearson_main_df=pearson_main_df,
+                pearson_support_df=pearson_support_df,
+                tahun_awal=selected_years[0],
+                tahun_akhir=selected_years[1],
+                provinsi_terpilih=selected_provinces if selected_provinces else None,
+            )
+
+        st.markdown(ai_answer)
+
+    st.session_state.chat_history_hubungan.append(
+        {"role": "assistant", "content": ai_answer}
     )
 
 st.info(

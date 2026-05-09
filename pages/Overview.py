@@ -19,8 +19,14 @@ EXPECTED_COLUMNS = [
     "PDRB",
     "IPM",
     "AHH",
+    "Cluster",
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
+CLUSTER_LABELS = {
+    1: "Rentan",
+    2: "Menengah",
+    3: "Maju",
+}
 
 
 @st.cache_data
@@ -41,16 +47,21 @@ def load_data(path: Path) -> pd.DataFrame:
 
     df = df[EXPECTED_COLUMNS].copy()
 
-    for col in ["Tahun", *NUMERIC_COLUMNS]:
+    for col in ["Tahun", *NUMERIC_COLUMNS, "Cluster"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df = df.dropna().sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
-    return df
 
+    df["Tahun"] = df["Tahun"].astype(int)
+    df["Cluster"] = df["Cluster"].astype(int)
+
+    return df
 
 def format_number(value: float, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
+def format_cluster(value: int) -> str:
+    return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
 
 try:
     df = load_data(DATA_PATH)
@@ -83,7 +94,7 @@ with st.sidebar:
         help="Kosongkan pilihan untuk menampilkan seluruh provinsi.",
     )
 
-    top_n = st.slider("Jumlah Provinsi yang Ditampilkan", min_value=5, max_value=34, value=10)
+    top_n = st.slider("Jumlah Provinsi", min_value=5, max_value=34, value=10)
 
 filtered_df = df[
     (df["Tahun"] >= selected_years[0]) &
@@ -108,6 +119,38 @@ metric_cols_2 = st.columns(3)
 metric_cols_2[0].metric("Rata-rata PDRB", format_number(filtered_df["PDRB"].mean()))
 metric_cols_2[1].metric("Rata-rata Jumlah_Miskin", format_number(filtered_df["Jumlah_Miskin"].mean()))
 metric_cols_2[2].metric("Rentang Tahun Aktif", f"{selected_years[0]} - {selected_years[1]}")
+
+latest_active_year = int(filtered_df["Tahun"].max())
+
+latest_cluster_df = filtered_df[
+    filtered_df["Tahun"] == latest_active_year
+].copy()
+
+cluster_counts = (
+    latest_cluster_df
+    .groupby("Cluster")["Provinsi"]
+    .nunique()
+    .reindex([1, 2, 3], fill_value=0)
+)
+
+st.markdown(f"### Ringkasan Cluster Tahun Terbaru ({latest_active_year})")
+
+cluster_cols = st.columns(3)
+
+cluster_cols[0].metric(
+    "Rentan",
+    f"{cluster_counts.loc[1]:,} Provinsi"
+)
+
+cluster_cols[1].metric(
+    "Menengah",
+    f"{cluster_counts.loc[2]:,} Provinsi"
+)
+
+cluster_cols[2].metric(
+    "Maju",
+    f"{cluster_counts.loc[3]:,} Provinsi"
+)
 
 st.markdown("### Ringkasan Statistik")
 summary_df = pd.DataFrame({
@@ -170,12 +213,28 @@ with right_col:
     )
     st.plotly_chart(fig_rank, use_container_width=True)
 
-st.markdown("### Snapshot Tahun Terbaru")
+st.markdown("### Pratinjau Tahun Terbaru")
 
-latest_snapshot = filtered_df[filtered_df["Tahun"] == filtered_df["Tahun"].max()].copy()
+latest_snapshot = filtered_df[
+    filtered_df["Tahun"] == filtered_df["Tahun"].max()
+].copy()
+
+latest_snapshot["Keterangan Cluster"] = latest_snapshot["Cluster"].apply(format_cluster)
 
 latest_snapshot = (
-    latest_snapshot[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]]
+    latest_snapshot[
+        [
+            "Provinsi",
+            "Tahun",
+            "P0",
+            "PDRB",
+            "IPM",
+            "AHH",
+            "Jumlah_Miskin",
+            "Cluster",
+            "Keterangan Cluster",
+        ]
+    ]
     .sort_values("Provinsi")
     .reset_index(drop=True)
 )
@@ -183,5 +242,9 @@ latest_snapshot = (
 latest_snapshot.index = latest_snapshot.index + 1
 latest_snapshot = latest_snapshot.reset_index().rename(columns={"index": "No"})
 
-st.dataframe(latest_snapshot, use_container_width=True, hide_index=True)
+st.dataframe(
+    latest_snapshot,
+    use_container_width=True,
+    hide_index=True
+)
 

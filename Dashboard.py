@@ -18,9 +18,15 @@ EXPECTED_COLUMNS = [
     "PDRB",
     "IPM",
     "AHH",
+    "Cluster",
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 
+CLUSTER_LABELS = {
+    1: "Rentan",
+    2: "Menengah",
+    3: "Maju",
+}
 
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
@@ -41,22 +47,52 @@ def load_data(path: Path) -> pd.DataFrame:
 
     df = df[EXPECTED_COLUMNS].copy()
 
-    numeric_cols = ["Tahun", "Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
+    numeric_cols = ["Tahun", "Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH", "Cluster"]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df = df.dropna().sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
+
+    df["Tahun"] = df["Tahun"].astype(int)
+    df["Cluster"] = df["Cluster"].astype(int)
     return df
 
 
 def format_number(value: float, digits: int = 2) -> str:
     return f"{value:,.{digits}f}"
 
-
 def add_number_column(df: pd.DataFrame) -> pd.DataFrame:
     df = df.reset_index(drop=True)
     df.index = df.index + 1
     return df.reset_index().rename(columns={"index": "No"})
+
+def get_cluster_dari_rata_rata_indikator(df: pd.DataFrame) -> int:
+    rata_rata_indikator = df[NUMERIC_COLUMNS].mean()
+
+    rata_rata_per_cluster = (
+        df
+        .groupby("Cluster")[NUMERIC_COLUMNS]
+        .mean()
+        .sort_index()
+    )
+
+    standar_deviasi = df[NUMERIC_COLUMNS].std(ddof=0).replace(0, 1)
+
+    rata_rata_indikator_scaled = rata_rata_indikator / standar_deviasi
+    rata_rata_per_cluster_scaled = rata_rata_per_cluster / standar_deviasi
+
+    jarak = (
+        (rata_rata_per_cluster_scaled - rata_rata_indikator_scaled) ** 2
+    ).sum(axis=1) ** 0.5
+
+    return int(jarak.idxmin())
+def format_cluster(value: int) -> str:
+    return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
+
+def add_cluster_description(df: pd.DataFrame) -> pd.DataFrame:
+    result_df = df.copy()
+    result_df["Keterangan Cluster"] = result_df["Cluster"].apply(format_cluster)
+    return result_df
 
 
 st.title("Dashboard Faktor Ekonomi dan Kesehatan Masyarakat di Indonesia")
@@ -70,6 +106,8 @@ try:
 except Exception as exc:
     st.error(f"Gagal memuat dataset: {exc}")
     st.stop()
+
+df = add_cluster_description(df)
 
 with st.sidebar:
     st.markdown("**Sumber data:** Badan Pusat Statistik Indonesia (BPS)")
@@ -85,11 +123,18 @@ col3.metric("Tahun Awal", int(df["Tahun"].min()))
 col4.metric("Tahun Akhir", int(df["Tahun"].max()))
 
 st.markdown("### Rata-rata Indikator Seluruh Periode")
-mean_cols = st.columns(4)
+
+cluster_rata_rata = get_cluster_dari_rata_rata_indikator(df)
+
+mean_cols = st.columns(5)
 mean_cols[0].metric("Rata-rata P0", format_number(df["P0"].mean()))
 mean_cols[1].metric("Rata-rata PDRB", format_number(df["PDRB"].mean()))
 mean_cols[2].metric("Rata-rata IPM", format_number(df["IPM"].mean()))
 mean_cols[3].metric("Rata-rata AHH", format_number(df["AHH"].mean()))
+mean_cols[4].metric(
+    "Cluster Rata-rata",
+    CLUSTER_LABELS[cluster_rata_rata]
+)
 
 st.markdown("### Tujuan Dashboard")
 st.info(
@@ -113,22 +158,27 @@ with var1:
 
         **3. PDRB (Produk Domestik Regional Bruto)**  
         Nilai produk atau barang dan jasa yang dihasilkan di dalam wilayah domestik untuk digunakan sebagai konsumsi akhir masyarakat.
+
+        **4. IPM (Indeks Pembangunan Manusia)**  
+        Indeks yang mengukur pembangunan manusia dari tiga aspek dasar, yaitu umur panjang dan hidup sehat, pengetahuan, dan standar hidup layak.
         """
     )
 
 with var2:
     st.markdown(
         """
-        **4. IPM (Indeks Pembangunan Manusia)**  
-        Indeks yang mengukur pembangunan manusia dari tiga aspek dasar, yaitu umur panjang dan hidup sehat, pengetahuan, dan standar hidup layak.
-
         **5. AHH (Angka Harapan Hidup)**  
         Rata-rata perkiraan tahun yang dapat dijalani seseorang sejak lahir.
 
         **Provinsi dan Tahun**  
         Digunakan sebagai identitas unit analisis data pada tingkat provinsi per tahun.
+
+        **Cluster**  
+        Hasil pengelompokan wilayah berdasarkan indikator ekonomi dan kesehatan masyarakat.
+        Cluster 1 menunjukkan wilayah rentan, Cluster 2  menengah, dan Cluster 3 maju.
         """
     )
+    
 
 st.markdown("### Pratinjau Data")
 preview_df = add_number_column(df.head(340))
