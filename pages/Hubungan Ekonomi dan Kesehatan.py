@@ -23,8 +23,20 @@ EXPECTED_COLUMNS = [
     "PDRB",
     "IPM",
     "AHH",
+    "Cluster",
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
+CLUSTER_LABELS = {
+    1: "Rentan",
+    2: "Menengah",
+    3: "Maju",
+}
+CLUSTER_ORDER = ["Rentan", "Menengah", "Maju"]
+CLUSTER_COLORS = {
+    "Rentan": "#d62728",
+    "Menengah": "#ffbf00",
+    "Maju": "#2ca02c",
+}
 MAIN_PAIRS = [("P0", "AHH"), ("PDRB", "AHH"), ("P0", "IPM"), ("PDRB", "IPM")]
 SUPPORTING_PAIRS = [("Jumlah_Miskin", "AHH"), ("Jumlah_Miskin", "IPM")]
 ALL_PAIRS = MAIN_PAIRS + SUPPORTING_PAIRS
@@ -48,15 +60,22 @@ def load_data(path: Path) -> pd.DataFrame:
         )
 
     df = df[EXPECTED_COLUMNS].copy()
-    for col in ["Tahun", *NUMERIC_COLUMNS]:
+    for col in ["Tahun", *NUMERIC_COLUMNS, "Cluster"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df = df.dropna().sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
+
+    df["Tahun"] = df["Tahun"].astype(int)
+    df["Cluster"] = df["Cluster"].astype(int)
+
     return df
 
 
 def format_number(value: float, digits: int = 4) -> str:
     return f"{value:,.{digits}f}"
+
+def format_cluster(value: int) -> str:
+    return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
 
 def arah_hubungan(r: float) -> str:
     if r > 0:
@@ -64,7 +83,6 @@ def arah_hubungan(r: float) -> str:
     if r < 0:
         return "Negatif"
     return "Tidak ada hubungan linear"
-
 
 def kekuatan_hubungan(r: float) -> str:
     abs_r = abs(r)
@@ -77,7 +95,6 @@ def kekuatan_hubungan(r: float) -> str:
     if abs_r < 0.80:
         return "Kuat"
     return "Sangat kuat"
-
 
 def signifikansi_p(p: float) -> str:
     return "Signifikan" if p < 0.05 else "Tidak signifikan"
@@ -105,12 +122,13 @@ def build_pearson_table(data: pd.DataFrame, pairs: list[tuple[str, str]]) -> pd.
         )
     return add_number_column(pd.DataFrame(rows))
 
-
 try:
     df = load_data(DATA_PATH)
 except Exception as exc:
     st.error(f"Gagal memuat dataset: {exc}")
     st.stop()
+
+df["Keterangan Cluster"] = df["Cluster"].apply(format_cluster)
 
 st.title("Hubungan Ekonomi dan Kesehatan")
 st.caption(
@@ -162,15 +180,33 @@ summary_cols[1].metric("Nilai r", format_number(selected_r))
 summary_cols[2].metric("Arah Hubungan", arah_hubungan(selected_r))
 summary_cols[3].metric("Signifikansi", signifikansi_p(selected_p))
 
-st.markdown("### Scatterplot Hubungan Variabel")
-scatter_df = filtered_df[["Provinsi", "Tahun", selected_x, selected_y]].copy()
+st.markdown("### Scatterplot Hubungan Variabel Berdasarkan Cluster")
+
+scatter_df = filtered_df[
+    ["Provinsi", "Tahun", selected_x, selected_y, "Cluster", "Keterangan Cluster"]
+].copy()
+
 fig_scatter = px.scatter(
     scatter_df,
     x=selected_x,
     y=selected_y,
-    color="Provinsi" if selected_provinces else None,
-    hover_data=["Provinsi", "Tahun"],
-    title=f"Hubungan {selected_x} dan {selected_y} ({selected_years[0]}–{selected_years[1]})",
+    color="Keterangan Cluster",
+    category_orders={
+        "Keterangan Cluster": CLUSTER_ORDER
+    },
+    color_discrete_map=CLUSTER_COLORS,
+    hover_data={
+        "Provinsi": True,
+        "Tahun": True,
+        "Keterangan Cluster": True,
+        "Cluster": False,
+        selected_x: ":,.2f",
+        selected_y: ":,.2f",
+    },
+    title=(
+        f"Hubungan {selected_x} dan {selected_y} Berdasarkan Cluster "
+        f"({selected_years[0]}–{selected_years[1]})"
+    ),
     opacity=0.75,
 )
 
@@ -184,7 +220,10 @@ if scatter_df[selected_x].nunique() > 1:
             y=y_line,
             mode="lines",
             name="Garis Tren",
-            line=dict(width=3),
+            line=dict(
+                width=3,
+                color="#2597e9"
+                ),
         )
     )
 
@@ -215,7 +254,7 @@ with left_col:
 
 with right_col:
     st.markdown("### Data yang Digunakan dalam Analisis Korelasi")
-    snapshot_df = filtered_df[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin"]].copy()
+    snapshot_df = filtered_df[["Provinsi", "Tahun", "P0", "PDRB", "IPM", "AHH", "Jumlah_Miskin", "Keterangan Cluster"]].copy()
     snapshot_df = snapshot_df.sort_values(["Provinsi", "Tahun"]).reset_index(drop=True)
     snapshot_df = add_number_column(snapshot_df.head(340))
     st.dataframe(snapshot_df, use_container_width=True, hide_index=True)
