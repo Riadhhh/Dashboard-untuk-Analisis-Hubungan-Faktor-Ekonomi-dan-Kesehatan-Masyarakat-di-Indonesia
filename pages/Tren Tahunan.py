@@ -24,9 +24,9 @@ EXPECTED_COLUMNS = [
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 CORE_TREND_COLUMNS = ["P0", "PDRB", "IPM", "AHH"]
 CLUSTER_LABELS = {
-    1: "Rentan",
-    2: "Menengah",
-    3: "Maju",
+    1: "Cluster 1",
+    2: "Cluster 2",
+    3: "Cluster 3",
 }
 
 

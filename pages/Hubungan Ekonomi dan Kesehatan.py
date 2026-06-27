@@ -27,15 +27,15 @@ EXPECTED_COLUMNS = [
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 CLUSTER_LABELS = {
-    1: "Rentan",
-    2: "Menengah",
-    3: "Maju",
+    1: "Cluster 1",
+    2: "Cluster 2",
+    3: "Cluster 3",
 }
-CLUSTER_ORDER = ["Rentan", "Menengah", "Maju"]
+CLUSTER_ORDER = ["Cluster 1", "Cluster 2", "Cluster 3"]
 CLUSTER_COLORS = {
-    "Rentan": "#d62728",
-    "Menengah": "#ffbf00",
-    "Maju": "#2ca02c",
+    "Cluster 1": "#d62728",
+    "Cluster 2": "#ffbf00",
+    "Cluster 3": "#2ca02c",
 }
 MAIN_PAIRS = [("P0", "AHH"), ("PDRB", "AHH"), ("P0", "IPM"), ("PDRB", "IPM")]
 SUPPORTING_PAIRS = [("Jumlah_Miskin", "AHH"), ("Jumlah_Miskin", "IPM")]

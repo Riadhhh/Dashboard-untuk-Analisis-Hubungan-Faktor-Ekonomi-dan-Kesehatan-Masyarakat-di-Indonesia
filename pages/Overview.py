@@ -23,9 +23,9 @@ EXPECTED_COLUMNS = [
 ]
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 CLUSTER_LABELS = {
-    1: "Rentan",
-    2: "Menengah",
-    3: "Maju",
+    1: "Cluster 1",
+    2: "Cluster 2",
+    3: "Cluster 3",
 }
 
 
@@ -138,17 +138,17 @@ st.markdown(f"### Ringkasan Cluster Tahun Terbaru ({latest_active_year})")
 cluster_cols = st.columns(3)
 
 cluster_cols[0].metric(
-    "Rentan",
+    "Cluster 1",
     f"{cluster_counts.loc[1]:,} Provinsi"
 )
 
 cluster_cols[1].metric(
-    "Menengah",
+    "Cluster 2",
     f"{cluster_counts.loc[2]:,} Provinsi"
 )
 
 cluster_cols[2].metric(
-    "Maju",
+    "Cluster 3",
     f"{cluster_counts.loc[3]:,} Provinsi"
 )
 

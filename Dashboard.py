@@ -23,9 +23,9 @@ EXPECTED_COLUMNS = [
 NUMERIC_COLUMNS = ["Jumlah_Miskin", "P0", "PDRB", "IPM", "AHH"]
 
 CLUSTER_LABELS = {
-    1: "Rentan",
-    2: "Menengah",
-    3: "Maju",
+    1: "Cluster 1",
+    2: "Cluster 2",
+    3: "Cluster 3",
 }
 
 @st.cache_data
@@ -77,15 +77,14 @@ def get_cluster_dari_rata_rata_indikator(df: pd.DataFrame) -> int:
     )
 
     standar_deviasi = df[NUMERIC_COLUMNS].std(ddof=0).replace(0, 1)
-
     rata_rata_indikator_scaled = rata_rata_indikator / standar_deviasi
     rata_rata_per_cluster_scaled = rata_rata_per_cluster / standar_deviasi
 
     jarak = (
         (rata_rata_per_cluster_scaled - rata_rata_indikator_scaled) ** 2
     ).sum(axis=1) ** 0.5
-
     return int(jarak.idxmin())
+
 def format_cluster(value: int) -> str:
     return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
 
@@ -156,7 +155,7 @@ with var1:
         **2. P0 (Persentase Penduduk Miskin)**  
         Persentase penduduk yang memiliki rata-rata pengeluaran per kapita per bulan di bawah garis kemiskinan.
 
-        **3. PDRB (Produk Domestik Regional Bruto)**  
+        **3. PDRB (Produk Domestik Regional Bruto) Atas Dasar Harga Berlaku**  
         Nilai produk atau barang dan jasa yang dihasilkan di dalam wilayah domestik untuk digunakan sebagai konsumsi akhir masyarakat.
 
         **4. IPM (Indeks Pembangunan Manusia)**  
@@ -175,7 +174,7 @@ with var2:
 
         **Cluster**  
         Hasil pengelompokan wilayah berdasarkan indikator ekonomi dan kesehatan masyarakat.
-        Cluster 1 menunjukkan wilayah rentan, Cluster 2  menengah, dan Cluster 3 maju.
+        Pengelompokan wilayah terdiri dari Cluster 1, Cluster 2, dan Cluster 3.
         """
     )
     
@@ -185,7 +184,6 @@ preview_df = add_number_column(df.head(340))
 st.dataframe(preview_df, use_container_width=True, hide_index=True)
 
 st.markdown("### Kesimpulan Hubungan Faktor Ekonomi dan Kesehatan")
-
 kesimpulan_df = pd.DataFrame(
     [
         {
