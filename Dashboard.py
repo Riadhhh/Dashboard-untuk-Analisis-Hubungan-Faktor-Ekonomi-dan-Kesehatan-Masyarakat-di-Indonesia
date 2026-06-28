@@ -88,11 +88,6 @@ def get_cluster_dari_rata_rata_indikator(df: pd.DataFrame) -> int:
 def format_cluster(value: int) -> str:
     return CLUSTER_LABELS.get(int(value), "Tidak Diketahui")
 
-def add_cluster_description(df: pd.DataFrame) -> pd.DataFrame:
-    result_df = df.copy()
-    result_df["Keterangan Cluster"] = result_df["Cluster"].apply(format_cluster)
-    return result_df
-
 
 st.title("Dashboard Faktor Ekonomi dan Kesehatan Masyarakat di Indonesia")
 st.caption(
@@ -105,8 +100,6 @@ try:
 except Exception as exc:
     st.error(f"Gagal memuat dataset: {exc}")
     st.stop()
-
-df = add_cluster_description(df)
 
 with st.sidebar:
     st.markdown("**Sumber data:** Badan Pusat Statistik Indonesia (BPS)")

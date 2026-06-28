@@ -265,7 +265,7 @@ with col_rank_chart:
 with col_rank_table:
     st.markdown("#### Tabel Ranking")
     ranking_table = ranking_df[
-        ["Provinsi", selected_indicator, "Cluster", "Keterangan Cluster"]
+        ["Provinsi", selected_indicator, "Cluster"]
     ].reset_index(drop=True)
     ranking_table.index = ranking_table.index + 1
     ranking_table =ranking_table.reset_index().rename(columns={"index": "No"})
@@ -355,7 +355,6 @@ latest_snapshot = (
             "AHH",
             "Jumlah_Miskin",
             "Cluster",
-            "Keterangan Cluster",
         ]
     ]
     .sort_values("Provinsi")

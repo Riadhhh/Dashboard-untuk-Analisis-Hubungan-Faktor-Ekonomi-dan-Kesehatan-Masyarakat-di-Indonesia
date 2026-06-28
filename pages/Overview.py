@@ -219,7 +219,6 @@ latest_snapshot = filtered_df[
     filtered_df["Tahun"] == filtered_df["Tahun"].max()
 ].copy()
 
-latest_snapshot["Keterangan Cluster"] = latest_snapshot["Cluster"].apply(format_cluster)
 
 latest_snapshot = (
     latest_snapshot[
@@ -232,7 +231,6 @@ latest_snapshot = (
             "AHH",
             "Jumlah_Miskin",
             "Cluster",
-            "Keterangan Cluster",
         ]
     ]
     .sort_values("Provinsi")

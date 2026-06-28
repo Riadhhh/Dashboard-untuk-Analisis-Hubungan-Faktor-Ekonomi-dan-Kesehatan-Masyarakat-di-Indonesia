@@ -207,8 +207,7 @@ trend_table["Cluster"] = trend_table.apply(
     ),
     axis=1,
 )
-
-trend_table["Keterangan Cluster"] = trend_table["Cluster"].apply(format_cluster)
+trend_table["Cluster"].apply(format_cluster)
 
 trend_table.index = trend_table.index + 1
 trend_table = trend_table.reset_index().rename(columns={"index": "No"})
